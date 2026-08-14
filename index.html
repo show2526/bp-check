@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>血壓紀錄</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --paper:#F3F5F4;
+    --card:#FFFFFF;
+    --ink:#1B2A38;
+    --ink-soft:#5B6B78;
+    --line:#DAE1E0;
+    --teal:#2F7A6B;
+    --teal-dark:#20564C;
+    --amber:#C48A2E;
+    --coral:#C4522E;
+    --tab-bg:#1B2A38;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'IBM Plex Sans',sans-serif;
+    -webkit-tap-highlight-color:transparent;
+    padding-bottom:40px;
+  }
+  .chart-tab{
+    background:var(--tab-bg);
+    color:#EDEFEC;
+    padding:22px 20px 18px;
+    position:relative;
+  }
+  .chart-tab .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:#8FA69C;
+    margin-bottom:6px;
+  }
+  .chart-tab h1{
+    margin:0;
+    font-size:24px;
+    font-weight:600;
+    letter-spacing:0.01em;
+  }
+  .chart-tab .sub{
+    font-size:13px;
+    color:#B6C0C6;
+    margin-top:4px;
+  }
+
+  .container{max-width:520px;margin:0 auto;padding:16px;}
+
+  .readout-row{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-top:-14px;
+  }
+  .readout{
+    background:var(--card);
+    border-radius:10px;
+    border:1px solid var(--line);
+    padding:12px 14px;
+    box-shadow:0 1px 2px rgba(27,42,56,0.04);
+  }
+  .readout .label{
+    font-size:10.5px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    font-family:'IBM Plex Mono',monospace;
+  }
+  .readout .value{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:26px;
+    font-weight:600;
+    margin-top:2px;
+    line-height:1.1;
+    display:flex;
+    align-items:baseline;
+    gap:5px;
+  }
+  .readout .value .unit{font-size:12px;font-weight:400;color:var(--ink-soft);}
+  .readout .status-dot{
+    display:inline-block;
+    width:7px;height:7px;border-radius:50%;
+    margin-right:6px;
+    vertical-align:middle;
+  }
+  .dot-normal{background:var(--teal);}
+  .dot-watch{background:var(--amber);}
+  .dot-high{background:var(--coral);}
+  .readout .status-text{font-size:11px;color:var(--ink-soft);margin-top:3px;}
+  .readout .empty{color:var(--ink-soft);font-size:13px;font-family:'IBM Plex Sans',sans-serif;font-weight:400;}
+
+  .card{
+    background:var(--card);
+    border-radius:12px;
+    border:1px solid var(--line);
+    padding:18px;
+    margin-top:16px;
+    box-shadow:0 1px 2px rgba(27,42,56,0.04);
+  }
+  .card h2{
+    font-size:13px;
+    text-transform:uppercase;
+    letter-spacing:0.09em;
+    color:var(--ink-soft);
+    margin:0 0 14px 0;
+    font-family:'IBM Plex Mono',monospace;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .card h2::after{
+    content:"";
+    flex:1;
+    height:1px;
+    background:var(--line);
+  }
+  .card h2 .h2-action{
+    font-family:'IBM Plex Sans',sans-serif;
+    text-transform:none;
+    letter-spacing:0;
+    flex:none;
+  }
+
+  .field{margin-bottom:14px;}
+  .field label{
+    display:block;
+    font-size:12.5px;
+    color:var(--ink-soft);
+    margin-bottom:5px;
+  }
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  input[type=date], input[type=time], input[type=number], select, textarea{
+    width:100%;
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:11px 12px;
+    font-size:16px;
+    font-family:'IBM Plex Mono',monospace;
+    color:var(--ink);
+    background:#FBFCFB;
+  }
+  select{font-family:'IBM Plex Sans',sans-serif;}
+  textarea{font-family:'IBM Plex Sans',sans-serif;resize:vertical;min-height:44px;}
+  input:focus, select:focus, textarea:focus{
+    outline:2px solid var(--teal);
+    outline-offset:1px;
+    background:#fff;
+  }
+
+  .pair-title{
+    font-size:11px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--teal-dark);
+    font-family:'IBM Plex Mono',monospace;
+    margin:4px 0 8px;
+  }
+
+  .save-btn{
+    width:100%;
+    padding:14px;
+    border:none;
+    border-radius:9px;
+    background:var(--teal);
+    color:#fff;
+    font-size:15.5px;
+    font-weight:600;
+    font-family:'IBM Plex Sans',sans-serif;
+    margin-top:6px;
+    cursor:pointer;
+    transition:background 0.15s ease;
+  }
+  .save-btn:active{background:var(--teal-dark);}
+  .save-btn:disabled{background:#A9B3B0;}
+
+  .export-btn{
+    background:none;
+    border:1px solid var(--teal);
+    color:var(--teal);
+    border-radius:7px;
+    padding:5px 12px;
+    font-size:12px;
+    font-family:'IBM Plex Sans',sans-serif;
+    font-weight:600;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    gap:5px;
+  }
+  .export-btn:active{background:var(--teal);color:#fff;}
+  .export-btn:disabled{opacity:0.4;border-color:var(--ink-soft);color:var(--ink-soft);cursor:default;}
+
+  .log-entry{
+    border-bottom:1px solid var(--line);
+    padding:12px 0;
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:10px;
+  }
+  .log-entry:last-child{border-bottom:none;}
+  .log-date{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    color:var(--ink-soft);
+    margin-bottom:3px;
+  }
+  .log-vals{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:14.5px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:12px;
+  }
+  .log-vals .tag-label{color:var(--ink-soft);font-size:11px;margin-right:3px;}
+  .log-note{
+    font-size:12.5px;
+    color:var(--ink-soft);
+    margin-top:4px;
+    font-family:'IBM Plex Sans',sans-serif;
+  }
+  .del-btn{
+    background:none;
+    border:none;
+    color:var(--ink-soft);
+    font-size:18px;
+    line-height:1;
+    padding:4px 6px;
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  .del-btn:active{color:var(--coral);}
+
+  .empty-state{
+    text-align:center;
+    color:var(--ink-soft);
+    font-size:13.5px;
+    padding:24px 10px;
+  }
+
+  .chart-wrap{margin-top:4px;}
+  .chart-legend{
+    display:flex;
+    gap:16px;
+    font-size:11px;
+    color:var(--ink-soft);
+    font-family:'IBM Plex Mono',monospace;
+    margin-top:6px;
+  }
+  .chart-legend span{display:flex;align-items:center;gap:5px;}
+  .legend-dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
+
+  .period-select{display:flex;gap:6px;flex-wrap:wrap;}
+  .period-select button{
+    flex:1;
+    min-width:60px;
+    padding:9px 4px;
+    border:1px solid var(--line);
+    background:#FBFCFB;
+    border-radius:7px;
+    font-size:13px;
+    font-family:'IBM Plex Sans',sans-serif;
+    color:var(--ink-soft);
+    cursor:pointer;
+  }
+  .period-select button.active{
+    background:var(--teal);
+    border-color:var(--teal);
+    color:#fff;
+  }
+
+  .save-toast{
+    position:fixed;
+    bottom:20px;
+    left:50%;
+    transform:translateX(-50%) translateY(20px);
+    background:var(--ink);
+    color:#fff;
+    padding:10px 20px;
+    border-radius:20px;
+    font-size:13px;
+    opacity:0;
+    transition:all 0.25s ease;
+    pointer-events:none;
+  }
+  .save-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+
+<div class="chart-tab">
+  <div class="eyebrow">個人健康紀錄・Log</div>
+  <h1>血壓紀錄</h1>
+  <div class="sub" id="entry-count">載入中…</div>
+</div>
+
+<div class="container">
+
+  <div class="readout-row" id="readout-row">
+    <div class="readout"><div class="empty">尚無血壓資料</div></div>
+    <div class="readout"><div class="empty">尚無心跳資料</div></div>
+  </div>
+
+  <div class="card">
+    <h2>新增紀錄</h2>
+    <div class="field">
+      <label>日期</label>
+      <input type="date" id="f-date">
+    </div>
+    <div class="field">
+      <label>測量時段</label>
+      <select id="f-period">
+        <option value="早">早</option>
+        <option value="晚">晚</option>
+      </select>
+    </div>
+
+    <div class="pair-title">血壓 Blood Pressure (mmHg)</div>
+    <div class="field-row">
+      <div class="field">
+        <label>收縮壓 SYS</label>
+        <input type="number" id="f-sys" inputmode="numeric" placeholder="—">
+      </div>
+      <div class="field">
+        <label>舒張壓 DIA</label>
+        <input type="number" id="f-dia" inputmode="numeric" placeholder="—">
+      </div>
+    </div>
+    <div class="field">
+      <label>心跳 (次/分,選填)</label>
+      <input type="number" id="f-pulse" inputmode="numeric" placeholder="—">
+    </div>
+    <div class="field">
+      <label>備註(選填)</label>
+      <textarea id="f-note" placeholder="例如:剛運動完、頭暈、吃藥後…"></textarea>
+    </div>
+
+    <button class="save-btn" id="save-btn">儲存紀錄</button>
+  </div>
+
+  <div class="card">
+    <h2>趨勢</h2>
+    <div class="period-select" id="range-select">
+      <button data-n="7" class="active">近7筆</button>
+      <button data-n="14">近14筆</button>
+      <button data-n="30">近30筆</button>
+    </div>
+    <div class="chart-wrap">
+      <svg id="chart" viewBox="0 0 300 120" style="width:100%;height:140px;margin-top:12px;"></svg>
+      <div class="chart-legend">
+        <span><i class="legend-dot" style="background:#C4522E"></i>收縮壓</span>
+        <span><i class="legend-dot" style="background:#E3A98C"></i>舒張壓</span>
+        <span><i class="legend-dot" style="background:#2F7A6B"></i>心跳</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>紀錄列表
+      <button class="export-btn h2-action" id="import-btn" style="margin-right:6px;">⬆ 匯入</button>
+      <button class="export-btn h2-action" id="export-btn">⬇ 匯出 Excel</button>
+    </h2>
+    <input type="file" id="import-file" accept=".xlsx,.xls" style="display:none;">
+    <div id="log-list"><div class="empty-state">尚未有任何紀錄,填寫上方表單開始追蹤。</div></div>
+  </div>
+
+</div>
+
+<div class="save-toast" id="toast">已儲存</div>
+
+<script>
+let entries = [];
+let chartRange = 7;
+
+function pad(n){ return n.toString().padStart(2,'0'); }
+function nowDateStr(){ const d=new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+document.getElementById('f-date').value = nowDateStr();
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1600);
+}
+
+async function loadEntries(){
+  let loaded = null;
+  try{
+    const raw = localStorage.getItem('bp-entries');
+    if(raw) loaded = JSON.parse(raw);
+  }catch(e){ /* 瀏覽器儲存不可用 */ }
+  entries = loaded || [];
+  entries.sort((a,b)=> sortKey(b).localeCompare(sortKey(a)));
+  render();
+}
+
+function sortKey(e){
+  return e.date + (e.period==='早' ? '0' : '1');
+}
+
+async function persist(){
+  try{
+    localStorage.setItem('bp-entries', JSON.stringify(entries));
+  }catch(e){
+    console.error('localStorage 儲存失敗', e);
+    showToast('⚠️ 自動儲存失敗，請記得手動匯出 Excel 備份');
+  }
+}
+
+function bpStatus(sys, dia){
+  if(sys==null || dia==null) return null;
+  if(sys>=140 || dia>=90) return 'high';
+  if(sys>=130 || dia>=80) return 'watch';
+  if(sys>=120) return 'watch';
+  return 'normal';
+}
+function statusLabel(s){
+  return s==='normal' ? '正常範圍' : s==='watch' ? '偏高,留意' : '過高,建議就醫';
+}
+
+function renderReadouts(){
+  const row = document.getElementById('readout-row');
+  const latest = entries[0];
+  if(!latest){
+    row.innerHTML = `<div class="readout"><div class="empty">尚無血壓資料</div></div><div class="readout"><div class="empty">尚無心跳資料</div></div>`;
+    return;
+  }
+  const dots = {normal:'dot-normal', watch:'dot-watch', high:'dot-high'};
+
+  const sys = latest.sys!=null && latest.sys!=='' ? Number(latest.sys) : null;
+  const dia = latest.dia!=null && latest.dia!=='' ? Number(latest.dia) : null;
+  const bStat = bpStatus(sys, dia);
+
+  const bpHtml = (sys || dia) ? `
+    <div class="readout">
+      <div class="label"><span class="status-dot ${bStat?dots[bStat]:''}"></span>最新血壓</div>
+      <div class="value">${sys||'—'}/${dia||'—'}<span class="unit">mmHg</span></div>
+      <div class="status-text">${bStat?statusLabel(bStat):''}</div>
+    </div>` : `<div class="readout"><div class="empty">尚無血壓資料</div></div>`;
+
+  const pulseHtml = latest.pulse ? `
+    <div class="readout">
+      <div class="label">最新心跳</div>
+      <div class="value">${latest.pulse}<span class="unit">bpm</span></div>
+      <div class="status-text">${latest.date}・${latest.period}</div>
+    </div>` : `<div class="readout"><div class="empty">尚無心跳資料</div></div>`;
+
+  row.innerHTML = bpHtml + pulseHtml;
+}
+
+function renderList(){
+  const el = document.getElementById('log-list');
+  document.getElementById('entry-count').textContent = entries.length ? `共 ${entries.length} 筆紀錄` : '尚無紀錄';
+  document.getElementById('export-btn').disabled = entries.length === 0;
+  if(!entries.length){
+    el.innerHTML = '<div class="empty-state">尚未有任何紀錄,填寫上方表單開始追蹤。</div>';
+    return;
+  }
+  el.innerHTML = entries.map(e=>{
+    const vals = [];
+    if(e.sys || e.dia) vals.push(`<span><span class="tag-label">血壓</span>${e.sys||'—'}/${e.dia||'—'}</span>`);
+    if(e.pulse) vals.push(`<span><span class="tag-label">心跳</span>${e.pulse}</span>`);
+    return `
+    <div class="log-entry">
+      <div style="flex:1">
+        <div class="log-date">${e.date}・${e.period}</div>
+        <div class="log-vals">${vals.join('')}</div>
+        ${e.note ? `<div class="log-note">${escapeHtml(e.note)}</div>` : ''}
+      </div>
+      <button class="del-btn" onclick="deleteEntry('${e.id}')">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+window.deleteEntry = async function(id){
+  entries = entries.filter(e=>e.id!==id);
+  await persist();
+  render();
+  showToast('已刪除');
+}
+
+function renderChart(){
+  const svg = document.getElementById('chart');
+  const data = entries.slice(0, chartRange).slice().reverse();
+  if(data.length < 2){
+    svg.innerHTML = `<text x="150" y="60" text-anchor="middle" font-size="11" fill="#8A9497" font-family="IBM Plex Mono">需要至少 2 筆資料才能畫出趨勢</text>`;
+    return;
+  }
+  const W=300, H=120, padL=26, padR=6, padT=10, padB=16;
+  const allVals = [];
+  data.forEach(e=>{
+    if(e.sys) allVals.push(Number(e.sys));
+    if(e.dia) allVals.push(Number(e.dia));
+    if(e.pulse) allVals.push(Number(e.pulse));
+  });
+  const minV = Math.min(...allVals, 40);
+  const maxV = Math.max(...allVals, 140);
+  const yScale = v => H - padB - ( (v-minV)/(maxV-minV) ) * (H-padT-padB);
+  const xScale = i => padL + (i/(data.length-1)) * (W-padL-padR);
+
+  function pathFor(key){
+    let pts = [];
+    data.forEach((e,i)=>{
+      if(e[key]!=null && e[key]!=='') pts.push([xScale(i), yScale(Number(e[key]))]);
+    });
+    if(pts.length < 2) return '';
+    return 'M' + pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' L');
+  }
+  function dotsFor(key, color){
+    return data.map((e,i)=>{
+      if(e[key]==null || e[key]==='') return '';
+      return `<circle cx="${xScale(i).toFixed(1)}" cy="${yScale(Number(e[key])).toFixed(1)}" r="2" fill="${color}"/>`;
+    }).join('');
+  }
+
+  let svgContent = '';
+  svgContent += `<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${H-padB}" stroke="#DAE1E0" stroke-width="0.5"/>`;
+  svgContent += `<line x1="${padL}" y1="${H-padB}" x2="${W-padR}" y2="${H-padB}" stroke="#DAE1E0" stroke-width="0.5"/>`;
+
+  svgContent += `<path d="${pathFor('sys')}" fill="none" stroke="#C4522E" stroke-width="1.5"/>` + dotsFor('sys','#C4522E');
+  svgContent += `<path d="${pathFor('dia')}" fill="none" stroke="#E3A98C" stroke-width="1.5"/>` + dotsFor('dia','#E3A98C');
+  svgContent += `<path d="${pathFor('pulse')}" fill="none" stroke="#2F7A6B" stroke-width="1.5"/>` + dotsFor('pulse','#2F7A6B');
+
+  svg.innerHTML = svgContent;
+}
+
+function render(){
+  renderReadouts();
+  renderList();
+  renderChart();
+}
+
+document.getElementById('range-select').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  document.querySelectorAll('#range-select button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  chartRange = Number(btn.dataset.n);
+  renderChart();
+});
+
+document.getElementById('save-btn').addEventListener('click', async ()=>{
+  const date = document.getElementById('f-date').value;
+  if(!date){
+    showToast('請填寫日期');
+    return;
+  }
+  const entry = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2,7),
+    date,
+    period: document.getElementById('f-period').value,
+    sys: document.getElementById('f-sys').value,
+    dia: document.getElementById('f-dia').value,
+    pulse: document.getElementById('f-pulse').value,
+    note: document.getElementById('f-note').value.trim()
+  };
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true;
+  entries.unshift(entry);
+  entries.sort((a,b)=> sortKey(b).localeCompare(sortKey(a)));
+  await persist();
+  render();
+  btn.disabled = false;
+  showToast('已儲存紀錄');
+
+  document.getElementById('f-sys').value='';
+  document.getElementById('f-dia').value='';
+  document.getElementById('f-pulse').value='';
+  document.getElementById('f-note').value='';
+  document.getElementById('f-date').value = nowDateStr();
+});
+
+document.getElementById('import-btn').addEventListener('click', ()=>{
+  document.getElementById('import-file').click();
+});
+
+document.getElementById('import-file').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  if(typeof XLSX === 'undefined'){
+    showToast('匯入功能載入失敗,請檢查網路連線');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = async (evt)=>{
+    try{
+      const data = new Uint8Array(evt.target.result);
+      const wb = XLSX.read(data, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws);
+      const imported = rows.map(r=>({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2,7),
+        date: String(r['日期']||'').trim(),
+        period: String(r['時段']||'早').trim(),
+        sys: r['收縮壓 SYS'] != null ? String(r['收縮壓 SYS']) : '',
+        dia: r['舒張壓 DIA'] != null ? String(r['舒張壓 DIA']) : '',
+        pulse: r['心跳 (bpm)'] != null ? String(r['心跳 (bpm)']) : '',
+        note: String(r['備註']||'').trim()
+      })).filter(r=>r.date);
+
+      if(!imported.length){
+        showToast('沒有讀到有效資料,請確認檔案格式');
+        return;
+      }
+      // 用日期+時段去重複，匯入的資料覆蓋現有相同筆數，其餘保留
+      const existingKeys = new Set(entries.map(en=>en.date+en.period));
+      const merged = entries.filter(en=>{
+        const k = en.date+en.period;
+        const dup = imported.some(im=>im.date+im.period===k);
+        return !dup;
+      }).concat(imported);
+      merged.sort((a,b)=> sortKey(b).localeCompare(sortKey(a)));
+      entries = merged;
+      await persist();
+      render();
+      showToast(`已匯入 ${imported.length} 筆紀錄`);
+    }catch(err){
+      console.error(err);
+      showToast('匯入失敗,請確認是正確的 Excel 檔');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  e.target.value = '';
+});
+
+document.getElementById('export-btn').addEventListener('click', ()=>{
+  if(!entries.length) return;
+  if(typeof XLSX === 'undefined'){
+    showToast('匯出功能載入失敗,請檢查網路連線');
+    return;
+  }
+  const rows = entries.slice().sort((a,b)=> sortKey(a).localeCompare(sortKey(b))).map(e=>({
+    '日期': e.date,
+    '時段': e.period,
+    '收縮壓 SYS': e.sys || '',
+    '舒張壓 DIA': e.dia || '',
+    '心跳 (bpm)': e.pulse || '',
+    '備註': e.note || ''
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:11},{wch:7},{wch:12},{wch:12},{wch:10},{wch:30}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '血壓紀錄');
+  const d = new Date();
+  const fname = `血壓紀錄_${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}.xlsx`;
+  XLSX.writeFile(wb, fname);
+  showToast('已匯出 Excel');
+});
+
+loadEntries();
+</script>
+</body>
+</html>
